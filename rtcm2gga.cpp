@@ -2,6 +2,8 @@
 //
 
 #include <iostream>
+#include <vector>
+#include <string>
 
 #define RTCM3PREAMB 0xD3        /* rtcm ver.3 frame preamble */
 
@@ -344,10 +346,148 @@ static void xyz2blh(const double* xyz, double* blh)
     return;
 }
 
+static void print_kml_heder(FILE* fKML)
+{
+    // write header for KML 
+    if (fKML) {
+        fprintf(fKML, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        fprintf(fKML, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n");
+        fprintf(fKML, "<Document>\n");
+        // fprintf(fKML, "<Placemark>\n");    
+        // fprintf(fKML, "<name>extruded</name>\n");
+        // fprintf(fKML, "<LineString>\n");
+        // fprintf(fKML, "<extrude>1</extrude>\n");
+        // fprintf(fKML, "<tessellate>1</tessellate>\n");
+        // fprintf(fKML, "<altitudeMode>relativeToGround</altitudeMode>\n");
+        // fprintf(fKML, "<coordinates>\n"); 
+        fprintf(fKML, "<Style id=\"spp\">\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<color>ff0000ff</color>\n");
+        fprintf(fKML, "<scale>0.300</scale>\n");
+        fprintf(fKML, "<Icon>\n");
+        fprintf(fKML, "<href>http://maps.google.com/mapfiles/kml/shapes/track.png</href>\n");
+        fprintf(fKML, "</Icon>\n");
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+        fprintf(fKML, "<Style id=\"rtd\">\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<color>ffff00ff</color>\n");
+        fprintf(fKML, "<scale>0.300</scale>\n");
+        fprintf(fKML, "<Icon>\n");
+        fprintf(fKML, "<href>http://maps.google.com/mapfiles/kml/shapes/track.png</href>\n");
+        fprintf(fKML, "</Icon>\n");
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+        fprintf(fKML, "<Style id=\"udr\">\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<color>50FF78F0</color>\n");
+        fprintf(fKML, "<scale>0.300</scale>\n");
+        fprintf(fKML, "<Icon>\n");
+        fprintf(fKML, "<href>http://maps.google.com/mapfiles/kml/shapes/track.png</href>\n");
+        fprintf(fKML, "</Icon>\n");
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+        fprintf(fKML, "<Style id=\"fix\">\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<color>ff00ff00</color>\n");
+        fprintf(fKML, "<scale>0.300</scale>\n");
+        fprintf(fKML, "<Icon>\n");
+        fprintf(fKML, "<href>http://maps.google.com/mapfiles/kml/shapes/track.png</href>\n");
+        fprintf(fKML, "</Icon>\n");
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+        fprintf(fKML, "<Style id=\"flt\">\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<color>ff00aaff</color>\n");
+        fprintf(fKML, "<scale>0.300</scale>\n");
+        fprintf(fKML, "<Icon>\n");
+        fprintf(fKML, "<href>http://maps.google.com/mapfiles/kml/shapes/track.png</href>\n");
+        fprintf(fKML, "</Icon>\n");
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+    }
+    return;
+}
+
+static void print_kml_gga(FILE* fKML, double lat, double lon, double ht, int solType, double time, float heading, char* sol_status)
+{
+    int day = 0;
+    int hh = 0;
+    int mm = 0;
+    if (fKML == NULL) return;
+    if (lat == 0.0 || lon == 0.0 || ht == 0.0) return;
+    if (fKML) {
+        day = (int)floor(time / (3600 * 24));
+        time -= day * 24 * 3600;
+        hh = (int)floor(time / 3600);
+        time -= hh * 3600;
+        mm = (int)floor(time / 60);
+        time -= mm * 60;
+        fprintf(fKML, "<Placemark>\n");
+        if (solType == 1) {
+            fprintf(fKML, "<styleUrl>#spp</styleUrl>\n");
+        }
+        else if (solType == 4) {
+            fprintf(fKML, "<styleUrl>#fix</styleUrl>\n");
+        }
+        else if (solType == 5) {
+            fprintf(fKML, "<styleUrl>#flt</styleUrl>\n");
+        }
+        else if (solType == 2) {
+            fprintf(fKML, "<styleUrl>#rtd</styleUrl>\n");
+        }
+        else if (solType == 3) {
+            fprintf(fKML, "<styleUrl>#udr</styleUrl>\n");
+        }
+        fprintf(fKML, "<Style>\n");
+        fprintf(fKML, "<IconStyle>\n");
+        fprintf(fKML, "<heading>%f</heading>\n", heading);
+        fprintf(fKML, "</IconStyle>\n");
+        fprintf(fKML, "</Style>\n");
+        fprintf(fKML, "<ExtendedData>\n");
+        fprintf(fKML, "<Data name=\"time\">\n");
+        fprintf(fKML, "<value>%02i:%02i:%5.2f</value>\n", hh, mm, time);
+        fprintf(fKML, "</Data>\n");
+        fprintf(fKML, "<Data name=\"heading\">\n");
+        fprintf(fKML, "<value>%.2f</value>\n", heading);
+        fprintf(fKML, "</Data>\n");
+        fprintf(fKML, "<Data name=\"sol_status\">\n");
+        fprintf(fKML, "<value>%s</value>\n", sol_status);
+        fprintf(fKML, "</Data>\n");
+        fprintf(fKML, "</ExtendedData>\n");
+        fprintf(fKML, "<Point>\n");
+        fprintf(fKML, "<coordinates>%14.9f,%14.9f,%14.4f</coordinates>\n", lon, lat, ht);
+        fprintf(fKML, "</Point>\n");
+        fprintf(fKML, "</Placemark>\n");
+    }
+    return;
+}
+
+static void print_kml_eof(FILE* fKML)
+{
+    if (fKML)
+    {
+        // fprintf(fKML, "</coordinates>\n");    
+        // fprintf(fKML, "</LineString>\n");
+        // fprintf(fKML, "</Placemark>\n");
+        fprintf(fKML, "</Document>\n");
+        fprintf(fKML, "</kml>\n");
+
+    }
+}
+
+typedef struct
+{
+    unsigned int type;
+    unsigned int count;
+    double time;
+}msg_t;
 
 static void rtcm2gga(const char* fname)
 {
     FILE* fRTCM = fopen(fname, "rb"); if (fRTCM == NULL) return;
+
+    FILE* fLOG = NULL;
 
     char fileName[255] = { 0 };
     char outfilename[255] = { 0 };
@@ -356,11 +496,15 @@ static void rtcm2gga(const char* fname)
     char* result = strrchr(fileName, '.');
     if (result != NULL) result[0] = '\0';
 
-    sprintf(outfilename, "%s-gga.nmea", fileName);
-    FILE* fGGA = fopen(outfilename, "w"); 
+    FILE* fGGA = NULL;
+    FILE* fKML = NULL;
+
+    unsigned long numofpos = 0;
 
     rtcm_buff_t rtcm_buffer = { 0 };
     int data = 0;
+
+    std::vector<msg_t> v_msg;
 
     while (fRTCM != NULL && !feof(fRTCM))
     {
@@ -369,24 +513,65 @@ static void rtcm2gga(const char* fname)
         if (rtcm_buffer.type > 0)
         {
             printf("%4i,%i,%4i,%4i,%4i,%10.3f,%c%03i\r\n", rtcm_buffer.type, rtcm_buffer.crc, rtcm_buffer.len, rtcm_buffer.slen, rtcm_buffer.wk, rtcm_buffer.tow, rtcm_buffer.sys, rtcm_buffer.prn);
-        }
-        if (ret == 5)
-        {
-            if (fGGA)
+            bool is_new_msg = true;
+            for (std::vector<msg_t>::iterator p_msg = v_msg.begin(); p_msg != v_msg.end(); ++p_msg)
             {
-                if (fabs(rtcm_buffer.pos[0]) > 0.1 && fabs(rtcm_buffer.pos[1]) > 0.1 && fabs(rtcm_buffer.pos[2]) > 0.1)
+                if (p_msg->type == rtcm_buffer.type)
                 {
-                    char gga[255] = { 0 };
-                    double blh[3] = { 0 };
-                    xyz2blh(rtcm_buffer.pos, blh);
-                    outnmea_gga((unsigned char*)gga, rtcm_buffer.tow, 1, blh, 10, 1.0, 0.0);
-                    fprintf(fGGA, "%s", gga);
+                    ++p_msg->count;
+                    p_msg->time = rtcm_buffer.tow;
+                    is_new_msg = false;
                 }
             }
+            if (is_new_msg)
+            {
+                if (v_msg.size()==0)
+                    fLOG = fopen("log.txt", "a+");
+                msg_t msg = { 0 };
+                msg.time = rtcm_buffer.tow;
+                msg.type = rtcm_buffer.type;
+                v_msg.push_back(msg);
+            }
         }
+        if (ret == 5 && fabs(rtcm_buffer.pos[0]) > 0.1 && fabs(rtcm_buffer.pos[1]) > 0.1 && fabs(rtcm_buffer.pos[2]) > 0.1)
+        {
+            if (numofpos == 0)
+            {
+                sprintf(outfilename, "%s-.kml", fileName);
+                fKML = fopen(outfilename, "w");
+                print_kml_heder(fKML);
+                sprintf(outfilename, "%s-.nmea", fileName);
+                fGGA = fopen(outfilename, "w");
+            }
+            ++numofpos;
+            double blh[3] = { 0 };
+            xyz2blh(rtcm_buffer.pos, blh);
+            if (fGGA)
+            {
+                char gga[255] = { 0 };
+                outnmea_gga((unsigned char*)gga, rtcm_buffer.tow, 1, blh, 10, 1.0, 0.0);
+                fprintf(fGGA, "%s", gga);
+            }
+            char sol_status[2] = { 0 };
+            print_kml_gga(fKML, blh[0] * 180.0 / PI, blh[1] * 180.0 / PI, blh[2], 1, rtcm_buffer.tow, 0, sol_status);
+        }
+    }
+    if (fLOG)
+    {
+        fprintf(fLOG, "%s", fname);
+        for (std::vector<msg_t>::iterator p_msg = v_msg.begin(); p_msg != v_msg.end(); ++p_msg)
+        {
+            fprintf(fLOG, ",%i,%i", p_msg->type, p_msg->count);
+        }
+        fprintf(fLOG, "\r\n");
     }
     if (fRTCM) fclose(fRTCM);
     if (fGGA) fclose(fGGA);
+    if (fLOG) fclose(fLOG);
+    if (fKML) {
+        print_kml_eof(fKML);
+        fclose(fKML);
+    }
 }
 
 int main(int argc, char* argv[])
