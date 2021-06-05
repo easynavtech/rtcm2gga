@@ -528,7 +528,9 @@ static void rtcm2gga(const char* fname)
 
     double lastEpoch = 0.0;
     unsigned long numofepoch = 0;
-    unsigned long numofgap[5] = { 0 };
+    unsigned long numofgap[6] = { 0 };
+    unsigned long numofcrc = 0;
+    unsigned long numofmsg = 0;
 
     while (fRTCM != NULL && !feof(fRTCM))
     {
@@ -536,25 +538,33 @@ static void rtcm2gga(const char* fname)
         int ret = input_rtcm3_type(&rtcm_buffer, (unsigned char)data);
         if (rtcm_buffer.type > 0)
         {
-            printf("%4i,%i,%4i,%4i,%4i,%10.3f,%c%03i\r\n", rtcm_buffer.type, rtcm_buffer.crc, rtcm_buffer.len, rtcm_buffer.slen, rtcm_buffer.wk, rtcm_buffer.tow, rtcm_buffer.sys, rtcm_buffer.prn);
-            bool is_new_msg = true;
-            for (std::vector<msg_t>::iterator p_msg = v_msg.begin(); p_msg != v_msg.end(); ++p_msg)
+            ++numofmsg;
+            //printf("%4i,%i,%4i,%4i,%4i,%10.3f,%c%03i\r\n", rtcm_buffer.type, rtcm_buffer.crc, rtcm_buffer.len, rtcm_buffer.slen, rtcm_buffer.wk, rtcm_buffer.tow, rtcm_buffer.sys, rtcm_buffer.prn);
+            if (rtcm_buffer.crc == 0)
             {
-                if (p_msg->type == rtcm_buffer.type)
+                bool is_new_msg = true;
+                for (std::vector<msg_t>::iterator p_msg = v_msg.begin(); p_msg != v_msg.end(); ++p_msg)
                 {
-                    ++p_msg->count;
-                    p_msg->time = rtcm_buffer.tow;
-                    is_new_msg = false;
+                    if (p_msg->type == rtcm_buffer.type)
+                    {
+                        ++p_msg->count;
+                        p_msg->time = rtcm_buffer.tow;
+                        is_new_msg = false;
+                    }
+                }
+                if (is_new_msg)
+                {
+                    if (v_msg.size() == 0)
+                        fLOG = fopen("log.txt", "a+");
+                    msg_t msg = { 0 };
+                    msg.time = rtcm_buffer.tow;
+                    msg.type = rtcm_buffer.type;
+                    v_msg.push_back(msg);
                 }
             }
-            if (is_new_msg)
+            else
             {
-                if (v_msg.size()==0)
-                    fLOG = fopen("log.txt", "a+");
-                msg_t msg = { 0 };
-                msg.time = rtcm_buffer.tow;
-                msg.type = rtcm_buffer.type;
-                v_msg.push_back(msg);
+                ++numofcrc;
             }
         }
         if (ret == 1) {
@@ -574,7 +584,7 @@ static void rtcm2gga(const char* fname)
                     log_gap.push_back(gap);
                     if (dt < 4.5)
                         ++numofgap[0];
-                    else if (dt<9.5)
+                    else if (dt < 9.5)
                         ++numofgap[1];
                     else if (dt < 14.5)
                         ++numofgap[2];
@@ -582,10 +592,12 @@ static void rtcm2gga(const char* fname)
                         ++numofgap[3];
                     else if (dt < 59.5)
                         ++numofgap[4];
+                    else
+                        ++numofgap[5];
                     //printf("%10.3f,%10.3f,%u,%u,%u,%u,%u,%u,%s\r\n", gap.start_time, dt, numofepoch, numofgap[0], numofgap[1], numofgap[2], numofgap[3], numofgap[4]);
                     if (fLOG)
                     {
-                        fprintf(fLOG, "%10.3f,%10.3f,%7u,%7u,%7u,%7u,%7u,%7u,%s\r\n", gap.start_time, dt, numofepoch, numofgap[0], numofgap[1], numofgap[2], numofgap[3], numofgap[4], fname);
+                        fprintf(fLOG, "%10.3f,%10.3f,%7u,%7u(5s),%7u(10s),%7u(15s),%7u(30s),%7u(60s),%7u(>60s),%s,data gap record\r\n", gap.start_time, dt, numofepoch, numofgap[0], numofgap[1], numofgap[2], numofgap[3], numofgap[4], numofgap[5], fname);
                     }
                 }
             }
@@ -620,7 +632,7 @@ static void rtcm2gga(const char* fname)
         {
             fprintf(fLOG, "%7u(%4i),", p_msg->count, p_msg->type);
         }
-        fprintf(fLOG, "%7u,%s\r\n", numofepoch,fname);
+        fprintf(fLOG, "%7u,%7u,%7u,%s,total epoch, total msg count, total crc failed msg\r\n", numofepoch, numofmsg, numofcrc, fname);
     }
     if (fRTCM) fclose(fRTCM);
     if (fGGA) fclose(fGGA);
