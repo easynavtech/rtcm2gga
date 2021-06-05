@@ -5,7 +5,17 @@
 #include <vector>
 #include <string>
 
+#ifndef WEEK_SECOND_HALF
+#define WEEK_SECOND_HALF (7*24*1800)
+#endif
+
+#ifndef WEEK_SECOND_FULL 
+#define WEEK_SECOND_FULL (WEEK_SECOND_HALF+WEEK_SECOND_HALF)
+#endif
+
+#ifndef RTCM3PREAMB
 #define RTCM3PREAMB 0xD3        /* rtcm ver.3 frame preamble */
+#endif
 
 static const unsigned int tbl_CRC24Q[] = {
     0x000000,0x864CFB,0x8AD50D,0x0C99F6,0x93E6E1,0x15AA1A,0x1933EC,0x9F7F17,
@@ -483,6 +493,12 @@ typedef struct
     double time;
 }msg_t;
 
+typedef struct
+{
+    double start_time;
+    double end_time;
+}gap_t;
+
 static void rtcm2gga(const char* fname)
 {
     FILE* fRTCM = fopen(fname, "rb"); if (fRTCM == NULL) return;
@@ -505,6 +521,14 @@ static void rtcm2gga(const char* fname)
     int data = 0;
 
     std::vector<msg_t> v_msg;
+
+    std::vector<std::string> log_msg;
+
+    std::vector<gap_t> log_gap;
+
+    double lastEpoch = 0.0;
+    unsigned long numofepoch = 0;
+    unsigned long numofgap[5] = { 0 };
 
     while (fRTCM != NULL && !feof(fRTCM))
     {
@@ -533,6 +557,40 @@ static void rtcm2gga(const char* fname)
                 v_msg.push_back(msg);
             }
         }
+        if (ret == 1) {
+            ++numofepoch;
+            if (numofepoch > 1)
+            {
+                double dt = rtcm_buffer.tow - lastEpoch;
+                while (dt < -WEEK_SECOND_HALF)
+                {
+                    dt += WEEK_SECOND_FULL;
+                }
+                if (dt > 1.5)
+                {
+                    gap_t gap = { 0 };
+                    gap.start_time = lastEpoch;
+                    gap.end_time = rtcm_buffer.tow;
+                    log_gap.push_back(gap);
+                    if (dt < 4.5)
+                        ++numofgap[0];
+                    else if (dt<9.5)
+                        ++numofgap[1];
+                    else if (dt < 14.5)
+                        ++numofgap[2];
+                    else if (dt < 29.5)
+                        ++numofgap[3];
+                    else if (dt < 59.5)
+                        ++numofgap[4];
+                    //printf("%10.3f,%10.3f,%u,%u,%u,%u,%u,%u,%s\r\n", gap.start_time, dt, numofepoch, numofgap[0], numofgap[1], numofgap[2], numofgap[3], numofgap[4]);
+                    if (fLOG)
+                    {
+                        fprintf(fLOG, "%10.3f,%10.3f,%7u,%7u,%7u,%7u,%7u,%7u,%s\r\n", gap.start_time, dt, numofepoch, numofgap[0], numofgap[1], numofgap[2], numofgap[3], numofgap[4], fname);
+                    }
+                }
+            }
+            lastEpoch = rtcm_buffer.tow;
+        }
         if (ret == 5 && fabs(rtcm_buffer.pos[0]) > 0.1 && fabs(rtcm_buffer.pos[1]) > 0.1 && fabs(rtcm_buffer.pos[2]) > 0.1)
         {
             if (numofpos == 0)
@@ -558,12 +616,11 @@ static void rtcm2gga(const char* fname)
     }
     if (fLOG)
     {
-        fprintf(fLOG, "%s", fname);
         for (std::vector<msg_t>::iterator p_msg = v_msg.begin(); p_msg != v_msg.end(); ++p_msg)
         {
-            fprintf(fLOG, ",%i,%i", p_msg->type, p_msg->count);
+            fprintf(fLOG, "%7u(%4i),", p_msg->count, p_msg->type);
         }
-        fprintf(fLOG, "\r\n");
+        fprintf(fLOG, "%7u,%s\r\n", numofepoch,fname);
     }
     if (fRTCM) fclose(fRTCM);
     if (fGGA) fclose(fGGA);
