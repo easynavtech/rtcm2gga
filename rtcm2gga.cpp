@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <string.h>
 
 #ifndef WEEK_SECOND_HALF
 #define WEEK_SECOND_HALF (7*24*1800)
@@ -643,10 +644,82 @@ static void rtcm2gga(const char* fname)
     }
 }
 
+static void gga_reformat(const char* fname)
+{
+    FILE* fRTCM = fopen(fname, "rb"); if (fRTCM == NULL) return;
+
+    FILE* fLOG = NULL;
+
+    char fileName[255] = { 0 };
+    char outfilename[255] = { 0 };
+
+    strcpy(fileName, fname);
+    char* result = strrchr(fileName, '.');
+    if (result != NULL) result[0] = '\0';
+
+    FILE* fGGA = NULL;
+
+    unsigned long numofpos = 0;
+    rtcm_buff_t rtcm_buffer = { 0 };
+    int data = 0;
+
+    while (fRTCM != NULL && !feof(fRTCM))
+    {
+        if ((data = fgetc(fRTCM)) == EOF) break;
+        if (rtcm_buffer.nbyte == 0)
+        {
+            if (data != '$') continue;
+            rtcm_buffer.buff[rtcm_buffer.nbyte++] = data;
+            continue;
+        }
+        if (data == '\r' || data == '\n')
+        {
+            if (strstr((char*)rtcm_buffer.buff, "GGA") != NULL)
+            {
+                char* temp = strstr((char*)rtcm_buffer.buff, ",E,");
+                if (temp != NULL)
+                {
+                    temp[1] = 'W';
+                    temp = strstr((char*)rtcm_buffer.buff, "*");
+                    if (temp != NULL)
+                    {
+                        temp[0] = '\0';
+                        char* q = 0, *p = temp;
+                        int sum = 0;
+                        for (q = (char*)rtcm_buffer.buff + 1, sum = 0; *q; q++) sum ^= *q; /* check-sum */
+                        p += sprintf(p, "*%02X%c%c", sum, 0x0D, 0x0A);
+
+                        if (numofpos == 0)
+                        {
+                            sprintf(outfilename, "%s-.nmea", fileName);
+                            fGGA = fopen(outfilename, "w");
+                        }
+                        ++numofpos;
+                        if (fGGA)
+                        {
+                            fprintf(fGGA, "%s", rtcm_buffer.buff);
+                        }
+                    }
+
+                }
+
+
+            }
+            rtcm_buffer.nbyte = 0;
+            continue;
+        }
+        rtcm_buffer.buff[rtcm_buffer.nbyte++] = data;
+    }
+    if (fRTCM) fclose(fRTCM);
+    if (fGGA) fclose(fGGA);
+}
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
     {
+        //gga_reformat("C:\\easynavtech\\multi_serialport_client\\2021-8-6\\2021-8-6-20-26-6-COM31.log");
+        //gga_reformat("C:\\easynavtech\\multi_serialport_client\\2021-8-6\\2021-8-6-20-39-23-COM31.log");
     }
     else
     {
